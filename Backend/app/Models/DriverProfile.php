@@ -12,6 +12,7 @@ class DriverProfile extends Model
         'user_id',
         'vehicle_type',
         'license_number',
+        'approval_status',
         'is_online',
     ];
 

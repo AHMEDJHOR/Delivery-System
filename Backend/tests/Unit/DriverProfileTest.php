@@ -17,6 +17,7 @@ class DriverProfileTest extends TestCase
             'user_id',
             'vehicle_type',
             'license_number',
+            'approval_status',
             'is_online',
         ], $model->getFillable());
     }
