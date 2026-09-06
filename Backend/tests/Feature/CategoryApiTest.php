@@ -545,11 +545,16 @@ class CategoryApiTest extends TestCase
                 $this->endpoint . '/' . $category->id
             );
 
-        $response->assertStatus(500);
+        $response->assertStatus(409);
 
-        $this->assertDatabaseHas('categories', [
-            'id' => $category->id,
-        ]);
+$response->assertJsonPath(
+    'message',
+    'Cannot delete category while it has menu items.'
+);
+
+$this->assertDatabaseHas('categories', [
+    'id' => $category->id,
+]);
     }
 
     public function test_nonexistent_category_cannot_be_deleted(): void

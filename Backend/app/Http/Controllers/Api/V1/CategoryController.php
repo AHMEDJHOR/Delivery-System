@@ -123,21 +123,28 @@ class CategoryController extends Controller
      * Admin only.
      */
     public function destroy(Category $category): JsonResponse
-    {
-        try {
-            $category->delete();
-
-            ActivityLogger::categoryDeleted(request());
-
-            return $this->deleted(
-                'Category deleted successfully.'
-            );
-        } catch (Exception $e) {
+{
+    try {
+        if ($category->menuItems()->exists()) {
             return $this->error(
-                'Unable to delete category.',
-                500,
-                config('app.debug') ? $e->getMessage() : null
+                'Cannot delete category while it has menu items.',
+                409
             );
         }
+
+        $category->delete();
+
+        ActivityLogger::categoryDeleted(request());
+
+        return $this->deleted(
+            'Category deleted successfully.'
+        );
+    } catch (Exception $e) {
+        return $this->error(
+            'Unable to delete category.',
+            500,
+            config('app.debug') ? $e->getMessage() : null
+        );
     }
+}
 }
