@@ -128,4 +128,40 @@ public static function restaurantDeleted(?Request $request = null): void
             $request
         );
     }
+
+    public static function cartItemAdded(?Request $request = null): void
+{
+    self::log(
+        'cart_item_added',
+        'Cart item added',
+        $request
+    );
+}
+
+public static function cartItemUpdated(?Request $request = null): void
+{
+    self::log(
+        'cart_item_updated',
+        'Cart item updated',
+        $request
+    );
+}
+
+public static function cartItemDeleted(?Request $request = null): void
+{
+    self::log(
+        'cart_item_deleted',
+        'Cart item deleted',
+        $request
+    );
+}
+
+public static function cartCleared(?Request $request = null): void
+{
+    self::log(
+        'cart_cleared',
+        'Cart cleared',
+        $request
+    );
+}
 }

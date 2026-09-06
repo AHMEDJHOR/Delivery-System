@@ -1,0 +1,40 @@
+<?php
+
+namespace App\Http\Requests\V1\Cart;
+
+use App\Models\CartItem;
+use Illuminate\Foundation\Http\FormRequest;
+
+class UpdateCartItemRequest extends FormRequest
+{
+    /**
+     * Determine if the user is authorized to make this request.
+     */
+    public function authorize(): bool
+    {
+        $user = $this->user();
+        $cartItem = $this->route('cartItem');
+
+        return $user?->role === 'customer'
+            && $cartItem instanceof CartItem
+            && $cartItem->customer_id === $user->id;
+    }
+
+    /**
+     * Get the validation rules that apply to the request.
+     *
+     * @return array<string, mixed>
+     */
+    public function rules(): array
+    {
+        return [
+            'quantity' => [
+                'required',
+                'integer',
+                'min:1',
+                'max:99',
+            ],
+        ];
+    }
+}
+
