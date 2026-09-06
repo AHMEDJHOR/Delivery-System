@@ -128,67 +128,94 @@ public static function restaurantDeleted(?Request $request = null): void
             $request
         );
     }
-
+    
     public static function cartItemAdded(?Request $request = null): void
-{
-    self::log(
-        'cart_item_added',
-        'Cart item added',
-        $request
-    );
-}
+    {
+        self::log(
+            'cart_item_added',
+            'Cart item added',
+            $request
+        );
+    }
 
-public static function cartItemUpdated(?Request $request = null): void
-{
-    self::log(
-        'cart_item_updated',
-        'Cart item updated',
-        $request
-    );
-}
+    public static function cartItemUpdated(?Request $request = null): void
+    {
+        self::log(
+            'cart_item_updated',
+            'Cart item updated',
+            $request
+        );
+    }
 
-public static function cartItemDeleted(?Request $request = null): void
-{
-    self::log(
-        'cart_item_deleted',
-        'Cart item deleted',
-        $request
-    );
-}
+    public static function cartItemDeleted(?Request $request = null): void
+    {
+        self::log(
+            'cart_item_deleted',
+            'Cart item deleted',
+            $request
+        );
+    }
 
-public static function cartCleared(?Request $request = null): void
-{
-    self::log(
-        'cart_cleared',
-        'Cart cleared',
-        $request
-    );
-}
+    public static function cartCleared(?Request $request = null): void
+    {
+        self::log(
+            'cart_cleared',
+            'Cart cleared',
+            $request
+        );
+    }
 
-public static function orderCreated(?Request $request = null): void
-{
-    self::log(
-        'order_created',
-        'Order created',
-        $request
-    );
-}
+    public static function orderCreated(?Request $request = null): void
+    {
+        self::log(
+            'order_created',
+            'Order created',
+            $request
+        );
+    }
 
-public static function orderStatusUpdated(?Request $request = null): void
-{
-    self::log(
-        'order_status_updated',
-        'Order status updated',
-        $request
-    );
-}
+    public static function orderStatusUpdated(?Request $request = null): void
+    {
+        self::log(
+            'order_status_updated',
+            'Order status updated',
+            $request
+        );
+    }
 
-public static function orderDriverAssigned(?Request $request = null): void
-{
-    self::log(
-        'order_driver_assigned',
-        'Driver assigned to order',
-        $request
-    );
-}
+    public static function orderDriverAssigned(?Request $request = null): void
+    {
+        self::log(
+            'order_driver_assigned',
+            'Driver assigned to order',
+            $request
+        );
+    }
+
+    public static function categoryCreated(?Request $request = null): void
+    {
+        self::log(
+            'category_created',
+            'Category created',
+            $request
+        );
+    }
+
+    public static function categoryUpdated(?Request $request = null): void
+    {
+        self::log(
+            'category_updated',
+            'Category updated',
+            $request
+        );
+    }
+
+    public static function categoryDeleted(?Request $request = null): void
+    {
+        self::log(
+            'category_deleted',
+            'Category deleted',
+            $request
+        );
+    }
 }

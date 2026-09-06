@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AuthController;
+use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\MenuItemController;
 use App\Http\Controllers\Api\V1\CartController;
 use App\Http\Controllers\Api\V1\OrderController;
@@ -44,6 +45,16 @@ Route::get('restaurants/{restaurant}', [RestaurantController::class, 'show'])
 
 Route::get('restaurants/{restaurant}/menu-items', [RestaurantController::class, 'menuItems'])
     ->name('api.v1.restaurants.menu-items');
+
+    // Public category routes
+Route::get('categories', [CategoryController::class, 'index'])
+    ->name('api.v1.categories.index');
+
+Route::get('categories/{category}', [CategoryController::class, 'show'])
+    ->name('api.v1.categories.show');
+
+Route::get('categories/{category}/menu-items', [CategoryController::class, 'menuItems'])
+    ->name('api.v1.categories.menu-items');
 
 // Public menu item routes
 Route::get('menu-items', [MenuItemController::class, 'index'])
@@ -137,6 +148,16 @@ Route::middleware('role:admin')->group(function (): void {
 
         Route::delete('restaurants/{restaurant}', [RestaurantController::class, 'destroy'])
             ->name('api.v1.restaurants.destroy');
+
+             // Category routes
+        Route::post('categories', [CategoryController::class, 'store'])
+        ->name('api.v1.categories.store');
+
+        Route::put('categories/{category}', [CategoryController::class, 'update'])
+        ->name('api.v1.categories.update');
+
+        Route::delete('categories/{category}', [CategoryController::class, 'destroy'])
+        ->name('api.v1.categories.destroy');
     });
 });
 
