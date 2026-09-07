@@ -164,4 +164,31 @@ public static function cartCleared(?Request $request = null): void
         $request
     );
 }
+
+public static function orderCreated(?Request $request = null): void
+{
+    self::log(
+        'order_created',
+        'Order created',
+        $request
+    );
+}
+
+public static function orderStatusUpdated(?Request $request = null): void
+{
+    self::log(
+        'order_status_updated',
+        'Order status updated',
+        $request
+    );
+}
+
+public static function orderDriverAssigned(?Request $request = null): void
+{
+    self::log(
+        'order_driver_assigned',
+        'Driver assigned to order',
+        $request
+    );
+}
 }

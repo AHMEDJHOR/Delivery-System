@@ -201,4 +201,76 @@ public function test_menu_item_deleted_is_logged(): void
 
     ActivityLogger::menuItemDeleted($request);
 }
+
+public function test_order_created_is_logged(): void
+{
+    Log::shouldReceive('channel')
+        ->once()
+        ->with('activity')
+        ->andReturnSelf();
+
+    Log::shouldReceive('info')
+        ->once()
+        ->with(
+            'Order created',
+            \Mockery::on(function (array $data): bool {
+                return $data['action'] === 'order_created';
+            })
+        );
+
+    $request = Request::create(
+        '/api/v1/orders',
+        'POST'
+    );
+
+    ActivityLogger::orderCreated($request);
+}
+
+public function test_order_status_updated_is_logged(): void
+{
+    Log::shouldReceive('channel')
+        ->once()
+        ->with('activity')
+        ->andReturnSelf();
+
+    Log::shouldReceive('info')
+        ->once()
+        ->with(
+            'Order status updated',
+            \Mockery::on(function (array $data): bool {
+                return $data['action'] === 'order_status_updated';
+            })
+        );
+
+    $request = Request::create(
+        '/api/v1/orders/1/status',
+        'PUT'
+    );
+
+    ActivityLogger::orderStatusUpdated($request);
+}
+
+public function test_order_driver_assigned_is_logged(): void
+{
+    Log::shouldReceive('channel')
+        ->once()
+        ->with('activity')
+        ->andReturnSelf();
+
+    Log::shouldReceive('info')
+        ->once()
+        ->with(
+            'Driver assigned to order',
+            \Mockery::on(function (array $data): bool {
+                return $data['action'] === 'order_driver_assigned';
+            })
+        );
+
+    $request = Request::create(
+        '/api/v1/orders/1/assign-driver',
+        'PUT'
+    );
+
+    ActivityLogger::orderDriverAssigned($request);
+}
 }
