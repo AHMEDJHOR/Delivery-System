@@ -4,7 +4,7 @@ export interface User {
   email: string
   username: string
   phone: string
-  role: 'customer' | 'driver' | 'manager' | 'admin'
+  role: 'customer' | 'driver' | 'restaurant_manager' | 'admin'
   status: string
   email_verified_at: string | null
   created_at: string
