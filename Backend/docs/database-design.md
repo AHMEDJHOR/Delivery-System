@@ -162,6 +162,8 @@ Stores restaurants and grocery stores registered on the platform. Each restauran
 | `address`         | TEXT            | NOT NULL                     | Restaurant address.                     |
 | `phone`           | VARCHAR(20)     | NOT NULL                     | Restaurant contact number.              |
 | `logo`            | VARCHAR(255)    | NULL                         | Restaurant logo path.                   |
+| `latitude` | DECIMAL(10,7) | NULL | Geographic latitude of the restaurant, used for delivery-distance calculation. |
+| `longitude` | DECIMAL(10,7) | NULL | Geographic longitude of the restaurant, used for delivery-distance calculation. |
 | `approval_status` | ENUM            | NOT NULL, DEFAULT `pending`  | `pending`, `approved`, or `rejected`.   |
 | `status`          | ENUM            | NOT NULL, DEFAULT `inactive` | `active`, `inactive`, or `suspended`.   |
 | `created_at`      | TIMESTAMP       | Auto Generated               | Record creation timestamp.              |
@@ -296,6 +298,8 @@ Stores customer orders from placement through delivery. Each order is associated
 | `delivery_fee`     | DECIMAL(10,2)   | NOT NULL, DEFAULT 0.00          | Delivery charge.                                                                                   |
 | `total_amount`     | DECIMAL(10,2)   | NOT NULL                        | Final order amount.                                                                                |
 | `delivery_address` | TEXT            | NOT NULL                        | Customer's delivery address.                                                                       |
+| `delivery_latitude` | DECIMAL(10,7) | NULL | Geographic latitude of the customer's delivery location. |
+| `delivery_longitude` | DECIMAL(10,7) | NULL | Geographic longitude of the customer's delivery location. |
 | `phone`            | VARCHAR(20)     | NOT NULL                        | Contact phone used for the order.                                                                  |
 | `status`           | ENUM            | NOT NULL, DEFAULT `pending`     | `pending`, `preparing`, `ready_for_pickup`, `in_transit`, `delivered`, `cancelled`, or `rejected`. |
 | `assigned_at`      | TIMESTAMP       | NULL                            | Time when a driver was assigned.                                                                   |
@@ -318,6 +322,22 @@ Stores customer orders from placement through delivery. Each order is associated
 - One Driver Profile can be assigned to many orders.
 - One Order contains many order items.
 - One Order can have zero or one payment.
+
+### Delivery Distance and Fee Calculation
+
+The backend calculates the delivery fee using the restaurant's coordinates and the customer's delivery coordinates.
+
+Current pricing configuration:
+
+- Service fee: `20.00` ETB
+- Distance rate: `20.00` ETB per kilometer
+- Distance: Road distance calculated through the routing service.
+
+The delivery fee is calculated as:
+
+```text
+delivery_fee = service_fee + (distance_km × distance_rate_per_km)
+```
 
 ---
 

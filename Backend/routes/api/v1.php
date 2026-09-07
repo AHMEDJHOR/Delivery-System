@@ -80,7 +80,29 @@ Route::middleware(['auth:sanctum', 'throttle:authenticated'])->group(function ()
             ->name('api.v1.cart.destroy');
     });
 
-    Route::get('orders', [OrderController::class, 'index'])->name('api.v1.orders.index');
+    // Order routes
+Route::middleware('role:customer,restaurant_manager,driver,admin')->group(function (): void {
+    Route::get('orders', [OrderController::class, 'index'])
+        ->name('api.v1.orders.index');
+
+    Route::get('orders/{order}', [OrderController::class, 'show'])
+        ->name('api.v1.orders.show');
+});
+
+Route::middleware('role:customer')->group(function (): void {
+    Route::post('orders', [OrderController::class, 'store'])
+        ->name('api.v1.orders.store');
+});
+
+Route::middleware('role:restaurant_manager,driver,admin')->group(function (): void {
+    Route::put('orders/{order}/status', [OrderController::class, 'updateStatus'])
+        ->name('api.v1.orders.update-status');
+});
+
+Route::middleware('role:admin')->group(function (): void {
+    Route::put('orders/{order}/assign-driver', [OrderController::class, 'assignDriver'])
+        ->name('api.v1.orders.assign-driver');
+});
 
         // Restaurant Manager routes
     Route::middleware('role:restaurant_manager')->group(function (): void {
