@@ -3,71 +3,175 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\V1\Order\AssignDriverRequest;
+use App\Http\Requests\V1\Order\StoreOrderRequest;
+use App\Http\Requests\V1\Order\UpdateOrderStatusRequest;
 use App\Http\Resources\V1\OrderResource;
 use App\Http\Traits\ApiResponse;
 use App\Models\Order;
+use App\Services\ActivityLogger;
+use App\Services\OrderService;
+use DomainException;
+use Exception;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 class OrderController extends Controller
 {
     use ApiResponse;
 
+    public function __construct(
+        private OrderService $orderService
+    ) {
+    }
+
     /**
-     * List orders with stats, optional status filter, and search.
+     * Retrieve orders accessible to the authenticated user.
      */
-    public function index(Request $request): JsonResponse
+    public function index(): AnonymousResourceCollection
     {
-        $status = $request->query('status');
-        $search = trim((string) $request->query('search', ''));
-        $escapedSearch = $search !== '' ? addcslashes($search, '%_\\') : '';
+        $orders = $this->orderService->getAccessibleOrders(
+            request()->user()
+        );
 
-        $ordersQuery = Order::query()
-            ->with([
-                'customer:id,name',
-                'restaurant:id,name',
+        return OrderResource::collection($orders);
+    }
+
+    /**
+     * Retrieve one accessible order.
+     */
+    public function show(Order $order): OrderResource
+    {
+        $this->authorize('view', $order);
+
+        return OrderResource::make(
+            $order->load([
+                'customer',
+                'restaurant',
+                'driver.user',
+                'orderItems',
             ])
-            ->latest();
+        );
+    }
 
-        if ($status && $status !== 'all') {
-            $ordersQuery->where('status', $status);
+    /**
+     * Create an order from the customer's cart.
+     */
+    public function store(
+        StoreOrderRequest $request
+    ): OrderResource|JsonResponse {
+        try {
+            $order = $this->orderService->createOrder(
+                $request->user(),
+                $request->validated()
+            );
+
+            ActivityLogger::orderCreated($request);
+
+            return OrderResource::make(
+                $order->load([
+                    'customer',
+                    'restaurant',
+                    'driver.user',
+                    'orderItems',
+                ])
+            )->response()->setStatusCode(201);
+        } catch (DomainException $e) {
+            return $this->error(
+                $e->getMessage(),
+                422
+            );
+        } catch (Exception $e) {
+            return $this->error(
+                'Unable to create order.',
+                500,
+                config('app.debug')
+                    ? $e->getMessage()
+                    : null
+            );
         }
+    }
 
-        if ($search !== '') {
-            $ordersQuery->where(function ($query) use ($escapedSearch, $search): void {
-                $query->where('id', 'like', '%' . $escapedSearch . '%')
-                    ->orWhereHas('customer', function ($customerQuery) use ($escapedSearch): void {
-                        $customerQuery->where('name', 'like', '%' . $escapedSearch . '%');
-                    })
-                    ->orWhereHas('restaurant', function ($restaurantQuery) use ($escapedSearch): void {
-                        $restaurantQuery->where('name', 'like', '%' . $escapedSearch . '%');
-                    });
+    /**
+     * Update order status.
+     */
+    public function updateStatus(
+        UpdateOrderStatusRequest $request,
+        Order $order
+    ): OrderResource|JsonResponse {
+        $this->authorize('updateStatus', $order);
 
-                if (preg_match('/#?ORD-(\d+)/i', $search, $matches)) {
-                    $query->orWhere('id', (int) $matches[1]);
-                }
-            });
+        try {
+            $order = $this->orderService->updateStatus(
+                $request->user(),
+                $order,
+                $request->validated()['status']
+            );
+
+            ActivityLogger::orderStatusUpdated($request);
+
+            return OrderResource::make(
+                $order->load([
+                    'customer',
+                    'restaurant',
+                    'driver.user',
+                    'orderItems',
+                ])
+            );
+        } catch (DomainException $e) {
+            return $this->error(
+                $e->getMessage(),
+                422
+            );
+        } catch (Exception $e) {
+            return $this->error(
+                'Unable to update order status.',
+                500,
+                config('app.debug')
+                    ? $e->getMessage()
+                    : null
+            );
         }
+    }
 
-        $orders = $ordersQuery->limit(100)->get();
+    /**
+     * Assign a driver to an order.
+     */
+    public function assignDriver(
+        AssignDriverRequest $request,
+        Order $order
+    ): OrderResource|JsonResponse {
+        $this->authorize('assignDriver', $order);
 
-        $todayCounts = Order::query()
-            ->whereDate('created_at', today())
-            ->selectRaw('status, COUNT(*) as count')
-            ->groupBy('status')
-            ->pluck('count', 'status');
+        try {
+            $order = $this->orderService->assignDriver(
+                $order,
+                (int) $request->validated()['driver_id']
+            );
 
-        $stats = [
-            'totalToday' => (int) $todayCounts->sum(),
-            'pending' => (int) ($todayCounts['pending'] ?? 0),
-            'preparing' => (int) ($todayCounts['preparing'] ?? 0),
-            'delivered' => (int) ($todayCounts['delivered'] ?? 0),
-            'rejected' => (int) (($todayCounts['rejected'] ?? 0) + ($todayCounts['cancelled'] ?? 0)),
-        ];
+            ActivityLogger::orderDriverAssigned($request);
 
-        return $this->success([
-            'stats' => $stats,
-            'orders' => OrderResource::collection($orders)->resolve(),
-        ]);
+            return OrderResource::make(
+                $order->load([
+                    'customer',
+                    'restaurant',
+                    'driver.user',
+                    'orderItems',
+                ])
+            );
+        } catch (DomainException $e) {
+            return $this->error(
+                $e->getMessage(),
+                422
+            );
+        } catch (Exception $e) {
+            return $this->error(
+                'Unable to assign driver.',
+                500,
+                config('app.debug')
+                    ? $e->getMessage()
+                    : null
+            );
+        }
     }
 }
