@@ -27,6 +27,8 @@ class RestaurantApiTest extends TestCase
                 'name' => 'Ahmed Restaurant',
                 'description' => 'A test restaurant',
                 'address' => 'Adama, Ethiopia',
+                'latitude' => 8.54,
+                'longitude' => 39.27,
                 'phone' => '0912345678',
             ]);
 
@@ -219,6 +221,8 @@ public function test_restaurant_list_returns_expected_fields(): void
         'name' => 'Ahmed Restaurant',
         'description' => 'Test description',
         'address' => 'Adama, Ethiopia',
+        'latitude' => 8.54,
+        'longitude' => 39.27,
         'phone' => '0912345678',
         'approval_status' => 'approved',
         'status' => 'active',
@@ -235,6 +239,8 @@ public function test_restaurant_list_returns_expected_fields(): void
                 'name',
                 'description',
                 'address',
+                'latitude',
+                'longitude',
                 'phone',
                 'logo',
                 'approval_status',
@@ -404,6 +410,8 @@ public function test_restaurant_show_returns_expected_fields(): void
         'name' => 'Ahmed Restaurant',
         'description' => 'A test restaurant',
         'address' => 'Adama, Ethiopia',
+        'latitude' => 8.54,
+        'longitude' => 39.27,
         'phone' => '0912345678',
         'logo' => null,
     ]);
@@ -420,6 +428,9 @@ public function test_restaurant_show_returns_expected_fields(): void
             'name',
             'description',
             'address',
+            'address',
+            'latitude',
+            'longitude',
             'phone',
             'logo',
             'approval_status',
@@ -574,6 +585,9 @@ public function test_my_restaurants_returns_expected_fields(): void
                 'name',
                 'description',
                 'address',
+                'address',
+                'latitude',
+                'longitude',
                 'phone',
                 'logo',
                 'approval_status',
@@ -704,6 +718,8 @@ public function test_manager_can_update_multiple_fields(): void
             'name' => 'Updated Restaurant',
             'description' => 'Updated Description',
             'address' => 'Updated Address',
+            'latitude' => 6.54,
+            'longitude' => 49.27,
             'phone' => '0911111111',
         ]);
 
@@ -1233,6 +1249,57 @@ private function createRestaurant(
 
     return $restaurant;
 }
+
+public function test_manager_can_create_restaurant_with_coordinates(): void
+{
+    $manager = User::factory()->create([
+        'role' => 'restaurant_manager',
+    ]);
+
+    $response = $this->actingAs($manager, 'sanctum')
+        ->postJson($this->endpoint, [
+            'name' => 'Ahmed Restaurant',
+            'address' => 'Adama, Ethiopia',
+            'latitude' => 8.54,
+            'longitude' => 39.27,
+            'phone' => '0912345678',
+        ]);
+
+    $response->assertCreated();
+
+    $response->assertJsonPath(
+        'data.latitude',
+        '8.5400000'
+    );
+
+    $response->assertJsonPath(
+        'data.longitude',
+        '39.2700000'
+    );
+}
+
+public function test_restaurant_coordinates_must_be_valid(): void
+{
+    $manager = User::factory()->create([
+        'role' => 'restaurant_manager',
+    ]);
+
+    $response = $this->actingAs($manager, 'sanctum')
+        ->postJson($this->endpoint, [
+            'name' => 'Ahmed Restaurant',
+            'address' => 'Adama, Ethiopia',
+            'latitude' => 100,
+            'longitude' => 200,
+            'phone' => '0912345678',
+        ]);
+
+    $response->assertUnprocessable()
+        ->assertJsonValidationErrors([
+            'latitude',
+            'longitude',
+        ]);
+}
+
 public function test_public_can_view_restaurant_menu_items(): void
 {
     $restaurant = $this->createRestaurant();
@@ -1583,6 +1650,8 @@ public function test_manager_can_remove_existing_logo(): void
     $restaurant = new Restaurant([
         'name' => 'Test Restaurant',
         'address' => 'Adama, Ethiopia',
+        'latitude' => 8.54,
+        'longitude' => 39.27,
         'phone' => '0912345678',
         'logo' => 'restaurants/logo.jpg',
     ]);

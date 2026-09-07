@@ -12,7 +12,12 @@ class UpdateRestaurantRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        $user = $this->user();
+    $restaurant = $this->route('restaurant');
+
+    return $user?->role === 'restaurant_manager'
+        && $restaurant instanceof \App\Models\Restaurant
+        && $restaurant->manager_id === $user->id;
     }
 
     /**
@@ -26,6 +31,17 @@ class UpdateRestaurantRequest extends FormRequest
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['sometimes', 'nullable', 'string', 'max:2000'],
             'address' => ['sometimes', 'required', 'string', 'max:500'],
+            'latitude' => [
+    'nullable',
+    'numeric',
+    'between:-90,90',
+],
+
+'longitude' => [
+    'nullable',
+    'numeric',
+    'between:-180,180',
+],
             'phone' => [
                 'sometimes',
                 'required',
