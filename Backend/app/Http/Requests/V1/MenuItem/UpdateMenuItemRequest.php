@@ -18,7 +18,7 @@ class UpdateMenuItemRequest extends FormRequest
 
         return $user?->role === 'restaurant_manager'
         && $menuItem instanceof MenuItem
-        && $menuItem->restaurant?->manager_id === $user->id;
+        && $menuItem->restaurant->manager_id === $user->id;
     }
 
     /**

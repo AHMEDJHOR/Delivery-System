@@ -2,10 +2,12 @@
 
 namespace App\Http\Resources\V1;
 
+use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
+ * @mixin Order
  * @property-read int $id
  * @property-read int $customer_id
  * @property-read int $restaurant_id

@@ -20,7 +20,10 @@ class OrderService
 
     /**
      * Get orders accessible to the authenticated user.
+     *
+     * @return Collection<int, Order>
      */
+
     public function getAccessibleOrders(User $user): Collection
     {
         $query = Order::query()
