@@ -14,6 +14,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property-read int|null $driver_id
  * @property-read string $subtotal
  * @property-read string $delivery_fee
+ * @property-read string $delivery_status
  * @property-read string $total_amount
  * @property-read string $delivery_address
  * @property-read string|null $delivery_latitude
@@ -65,6 +66,7 @@ class OrderResource extends JsonResource
 
             'subtotal' => $this->subtotal,
             'delivery_fee' => $this->delivery_fee,
+            'delivery_status' => $this->delivery_status,
             'total_amount' => $this->total_amount,
 
             'delivery' => [

@@ -10,6 +10,9 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Restaurant;
 use App\Models\User;
+use App\Jobs\CalculateDeliveryFee;
+use App\Services\DeliveryDistanceService;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
@@ -490,96 +493,106 @@ class OrderApiTest extends TestCase
             ->assertJsonPath('data.id', $order->id);
     }
 
-    public function test_customer_can_create_order_from_their_cart(): void
-    {
-        Http::fake([
-            'https://router.project-osrm.org/*' => Http::response([
-                'routes' => [
-                    [
-                        'distance' => 5000,
-                    ],
-                ],
-            ], 200),
-        ]);
+public function test_customer_can_create_order_from_their_cart(): void
+{
+    Queue::fake();
 
-        $customer = User::factory()->create([
-            'role' => 'customer',
-        ]);
+    $customer = User::factory()->create([
+        'role' => 'customer',
+    ]);
 
-        $manager = User::factory()->create([
-            'role' => 'restaurant_manager',
-        ]);
+    $manager = User::factory()->create([
+        'role' => 'restaurant_manager',
+    ]);
 
-        $restaurant = Restaurant::factory()->create([
-            'manager_id' => $manager->id,
-            'approval_status' => 'approved',
-            'status' => 'active',
-            'latitude' => 8.5400000,
-            'longitude' => 39.2700000,
-        ]);
+    $restaurant = Restaurant::factory()->create([
+        'manager_id' => $manager->id,
+        'approval_status' => 'approved',
+        'status' => 'active',
+        'latitude' => 8.5400000,
+        'longitude' => 39.2700000,
+    ]);
 
-        $category = $this->createCategory();
+    $category = $this->createCategory();
 
-        $menuItem = $this->createMenuItem(
-    $restaurant,
-    $category,
-    'Burger',
-    100.00
-);
+    $menuItem = $this->createMenuItem(
+        $restaurant,
+        $category,
+        'Burger',
+        100.00
+    );
 
-        $this->createCartItem(
-            $customer,
-            $menuItem,
-            2
+    $this->createCartItem(
+        $customer,
+        $menuItem,
+        2
+    );
+
+    Sanctum::actingAs($customer);
+
+    $response = $this->postJson('/api/v1/orders', [
+        'delivery_address' => 'Adama',
+        'delivery_latitude' => 8.5500000,
+        'delivery_longitude' => 39.2600000,
+        'phone' => '0912345678',
+    ]);
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath(
+            'data.status',
+            'pending'
+        )
+        ->assertJsonPath(
+            'data.delivery_status',
+            'pending'
+        )
+        ->assertJsonPath(
+            'data.subtotal',
+            '200.00'
+        )
+        ->assertJsonPath(
+            'data.delivery_fee',
+            '0.00'
+        )
+        ->assertJsonPath(
+            'data.total_amount',
+            '200.00'
         );
 
-        Sanctum::actingAs($customer);
+    $order = Order::query()
+        ->where('customer_id', $customer->id)
+        ->latest('id')
+        ->firstOrFail();
 
-        $response = $this->postJson('/api/v1/orders', [
-            'delivery_address' => 'Adama',
-            'delivery_latitude' => 8.5500000,
-            'delivery_longitude' => 39.2600000,
-            'phone' => '0912345678',
-        ]);
+    Queue::assertPushed(
+        CalculateDeliveryFee::class,
+        function (CalculateDeliveryFee $job) use ($order): bool {
+            return $job->orderId === $order->id;
+        }
+    );
 
-        $response
-            ->assertCreated()
-            ->assertJsonPath(
-                'data.status',
-                'pending'
-            )
-            ->assertJsonPath(
-                'data.subtotal',
-                '200.00'
-            )
-            ->assertJsonPath(
-                'data.delivery_fee',
-                '120.00'
-            )
-            ->assertJsonPath(
-                'data.total_amount',
-                '320.00'
-            );
+    $this->assertDatabaseHas('orders', [
+        'id' => $order->id,
+        'customer_id' => $customer->id,
+        'restaurant_id' => $restaurant->id,
+        'subtotal' => '200.00',
+        'delivery_fee' => '0.00',
+        'total_amount' => '200.00',
+        'delivery_status' => 'pending',
+        'status' => 'pending',
+    ]);
 
-        $this->assertDatabaseHas('orders', [
-            'customer_id' => $customer->id,
-            'restaurant_id' => $restaurant->id,
-            'subtotal' => '200.00',
-            'delivery_fee' => '120.00',
-            'total_amount' => '320.00',
-            'status' => 'pending',
-        ]);
+    $this->assertDatabaseHas('order_items', [
+        'menu_item_id' => $menuItem->id,
+        'item_name' => 'Burger',
+        'quantity' => 2,
+        'unit_price' => '100.00',
+        'subtotal' => '200.00',
+    ]);
 
-        $this->assertDatabaseHas('order_items', [
-            'menu_item_id' => $menuItem->id,
-            'item_name' => 'Burger',
-            'quantity' => 2,
-            'unit_price' => '100.00',
-            'subtotal' => '200.00',
-        ]);
-
-        $this->assertDatabaseCount('cart_items', 0);
-    }
+    $this->assertDatabaseCount('cart_items', 0);
+}
 
     public function test_order_items_store_price_and_name_snapshot(): void
     {
@@ -682,79 +695,227 @@ class OrderApiTest extends TestCase
             );
     }
 
-    public function test_delivery_fee_and_total_are_calculated_by_the_backend(): void
-    {
-        Http::fake([
-            'https://router.project-osrm.org/*' => Http::response([
-                'routes' => [
-                    [
-                        'distance' => 7500,
-                    ],
+public function test_delivery_fee_and_total_are_calculated_by_the_backend(): void
+{
+    Queue::fake();
+
+    Http::fake([
+        'https://router.project-osrm.org/*' => Http::response([
+            'routes' => [
+                [
+                    'distance' => 7500,
                 ],
-            ], 200),
-        ]);
+            ],
+        ], 200),
+    ]);
 
-        $customer = User::factory()->create([
-            'role' => 'customer',
-        ]);
+    $customer = User::factory()->create([
+        'role' => 'customer',
+    ]);
 
-        $manager = User::factory()->create([
-            'role' => 'restaurant_manager',
-        ]);
+    $manager = User::factory()->create([
+        'role' => 'restaurant_manager',
+    ]);
 
-        $restaurant = Restaurant::factory()->create([
-            'manager_id' => $manager->id,
-            'approval_status' => 'approved',
-            'status' => 'active',
-            'latitude' => 8.5400000,
-            'longitude' => 39.2700000,
-        ]);
+    $restaurant = Restaurant::factory()->create([
+        'manager_id' => $manager->id,
+        'approval_status' => 'approved',
+        'status' => 'active',
+        'latitude' => 8.5400000,
+        'longitude' => 39.2700000,
+    ]);
 
-        $category = $this->createCategory();
+    $category = $this->createCategory();
 
-        $menuItem = $this->createMenuItem(
-    $restaurant,
-    $category,
-    'Pasta',
-    80.00
-);
+    $menuItem = $this->createMenuItem(
+        $restaurant,
+        $category,
+        'Pasta',
+        80.00
+    );
 
-        $this->createCartItem(
-            $customer,
-            $menuItem,
-            3
+    $this->createCartItem(
+        $customer,
+        $menuItem,
+        3
+    );
+
+    Sanctum::actingAs($customer);
+
+    $response = $this->postJson('/api/v1/orders', [
+        'delivery_address' => 'Adama',
+        'delivery_latitude' => 8.5500000,
+        'delivery_longitude' => 39.2600000,
+
+        // These values must be ignored.
+        'delivery_fee' => 9999.99,
+        'total_amount' => 99999.99,
+
+        'phone' => '0912345678',
+    ]);
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath(
+            'data.subtotal',
+            '240.00'
+        )
+        ->assertJsonPath(
+            'data.delivery_fee',
+            '0.00'
+        )
+        ->assertJsonPath(
+            'data.total_amount',
+            '240.00'
+        )
+        ->assertJsonPath(
+            'data.delivery_status',
+            'pending'
         );
 
-        Sanctum::actingAs($customer);
+    $order = Order::query()
+        ->where('customer_id', $customer->id)
+        ->latest('id')
+        ->firstOrFail();
 
-        $response = $this->postJson('/api/v1/orders', [
-            'delivery_address' => 'Adama',
-            'delivery_latitude' => 8.5500000,
-            'delivery_longitude' => 39.2600000,
+    Queue::assertPushed(
+        CalculateDeliveryFee::class,
+        function (CalculateDeliveryFee $job) use ($order): bool {
+            return $job->orderId === $order->id;
+        }
+    );
 
-            // These values should be ignored because the backend
-            // calculates the actual fee and total.
-            'delivery_fee' => 9999.99,
-            'total_amount' => 99999.99,
+    $job = new CalculateDeliveryFee($order->id);
 
-            'phone' => '0912345678',
-        ]);
+    $job->handle(
+        app(DeliveryDistanceService::class)
+    );
 
-        $response
-            ->assertCreated()
-            ->assertJsonPath(
-                'data.subtotal',
-                '240.00'
-            )
-            ->assertJsonPath(
-                'data.delivery_fee',
-                '170.00'
-            )
-            ->assertJsonPath(
-                'data.total_amount',
-                '410.00'
-            );
+    $order->refresh();
+
+    $this->assertSame(
+        '170.00',
+        $order->delivery_fee
+    );
+
+    $this->assertSame(
+        '410.00',
+        $order->total_amount
+    );
+
+    $this->assertSame(
+        'calculated',
+        $order->delivery_status
+    );
+}
+
+public function test_delivery_fee_cannot_exceed_the_configured_maximum(): void
+{
+    Queue::fake();
+
+    Http::fake([
+        'https://router.project-osrm.org/*' => Http::response([
+            'routes' => [
+                [
+                    'distance' => 50010,
+                ],
+            ],
+        ], 200),
+    ]);
+
+    $customer = User::factory()->create([
+        'role' => 'customer',
+    ]);
+
+    $manager = User::factory()->create([
+        'role' => 'restaurant_manager',
+    ]);
+
+    $restaurant = Restaurant::factory()->create([
+        'manager_id' => $manager->id,
+        'approval_status' => 'approved',
+        'status' => 'active',
+        'latitude' => 8.5400000,
+        'longitude' => 39.2700000,
+    ]);
+
+    $category = $this->createCategory();
+
+    $menuItem = $this->createMenuItem(
+        $restaurant,
+        $category,
+        'Delivery Fee Cap Item',
+        100.00
+    );
+
+    $this->createCartItem(
+        $customer,
+        $menuItem,
+        1
+    );
+
+    Sanctum::actingAs($customer);
+
+    $response = $this->postJson('/api/v1/orders', [
+        'delivery_address' => 'Far Location',
+        'delivery_latitude' => 9.0000000,
+        'delivery_longitude' => 40.0000000,
+        'phone' => '0912345678',
+    ]);
+
+    $response
+        ->assertCreated()
+        ->assertJsonPath(
+            'data.delivery_status',
+            'pending'
+        )
+        ->assertJsonPath(
+            'data.delivery_fee',
+            '0.00'
+        )
+        ->assertJsonPath(
+            'data.total_amount',
+            '100.00'
+        );
+
+    $order = Order::query()
+        ->where('customer_id', $customer->id)
+        ->latest('id')
+        ->firstOrFail();
+
+    Queue::assertPushed(
+        CalculateDeliveryFee::class,
+        function (CalculateDeliveryFee $job) use ($order): bool {
+            return $job->orderId === $order->id;
+        }
+    );
+
+    $job = new CalculateDeliveryFee($order->id);
+
+    try {
+        $job->handle(
+            app(DeliveryDistanceService::class)
+        );
+
+        $this->fail(
+            'Expected the delivery fee calculation to exceed the maximum.'
+        );
+    } catch (\DomainException $e) {
+        $this->assertSame(
+            'The calculated delivery fee exceeds the supported limit.',
+            $e->getMessage()
+        );
+
+        $job->failed($e);
     }
+
+    $this->assertDatabaseHas('orders', [
+        'id' => $order->id,
+        'delivery_status' => 'failed',
+        'delivery_fee' => '0.00',
+        'total_amount' => '100.00',
+    ]);
+}
 
 public function test_unavailable_menu_item_is_rejected(): void
 {
@@ -1016,8 +1177,11 @@ public function test_restaurant_without_coordinates_is_rejected(): void
     ]);
 }
 
+
 public function test_routing_service_failure_is_handled(): void
 {
+    Queue::fake();
+
     Http::fake([
         'https://router.project-osrm.org/*' => Http::response(
             [],
@@ -1066,19 +1230,69 @@ public function test_routing_service_failure_is_handled(): void
     ]);
 
     $response
-        ->assertStatus(500)
-        ->assertJsonPath('success', false)
+        ->assertCreated()
         ->assertJsonPath(
-            'message',
-            'Unable to create order.'
+            'data.status',
+            'pending'
+        )
+        ->assertJsonPath(
+            'data.delivery_status',
+            'pending'
+        )
+        ->assertJsonPath(
+            'data.subtotal',
+            '100.00'
+        )
+        ->assertJsonPath(
+            'data.delivery_fee',
+            '0.00'
+        )
+        ->assertJsonPath(
+            'data.total_amount',
+            '100.00'
         );
 
-    $this->assertDatabaseCount('orders', 0);
+    $order = Order::query()
+        ->where('customer_id', $customer->id)
+        ->latest('id')
+        ->firstOrFail();
 
-    $this->assertDatabaseHas('cart_items', [
+    Queue::assertPushed(
+        CalculateDeliveryFee::class,
+        function (CalculateDeliveryFee $job) use ($order): bool {
+            return $job->orderId === $order->id;
+        }
+    );
+
+    $job = new CalculateDeliveryFee($order->id);
+
+    try {
+        $job->handle(
+            app(DeliveryDistanceService::class)
+        );
+
+        $this->fail(
+            'Expected delivery distance calculation to fail.'
+        );
+    } catch (\Exception $e) {
+        $this->assertSame(
+            'Unable to calculate delivery distance.',
+            $e->getMessage()
+        );
+
+        $job->failed($e);
+    }
+
+    $this->assertDatabaseHas('orders', [
+        'id' => $order->id,
+        'delivery_status' => 'failed',
+        'delivery_fee' => '0.00',
+        'total_amount' => '100.00',
+    ]);
+
+    $this->assertDatabaseMissing('cart_items', [
         'customer_id' => $customer->id,
         'menu_item_id' => $menuItem->id,
-        'quantity' => 1,
     ]);
 }
 
@@ -1502,6 +1716,71 @@ public function test_admin_can_assign_approved_online_driver_to_ready_order(): v
     );
 }
 
+public function test_admin_cannot_reassign_an_already_assigned_order(): void
+{
+    $admin = User::factory()->create([
+        'role' => 'admin',
+    ]);
+
+    $firstDriver = User::factory()->create([
+        'role' => 'driver',
+    ]);
+
+    $firstDriverProfile = $this->createDriverProfile(
+        $firstDriver,
+        'LIC-011'
+    );
+
+    $secondDriver = User::factory()->create([
+        'role' => 'driver',
+    ]);
+
+    $secondDriverProfile = $this->createDriverProfile(
+        $secondDriver,
+        'LIC-012'
+    );
+
+    $manager = User::factory()->create([
+        'role' => 'restaurant_manager',
+    ]);
+
+    $restaurant = Restaurant::factory()->create([
+        'manager_id' => $manager->id,
+    ]);
+
+    $customer = User::factory()->create([
+        'role' => 'customer',
+    ]);
+
+    $order = $this->createOrder(
+        $customer,
+        $restaurant,
+        $firstDriverProfile->id,
+        'ready_for_pickup'
+    );
+
+    Sanctum::actingAs($admin);
+
+    $response = $this->putJson(
+        "/api/v1/orders/{$order->id}/assign-driver",
+        [
+            'driver_id' => $secondDriverProfile->id,
+        ]
+    );
+
+    $response
+        ->assertStatus(422)
+        ->assertJsonPath(
+            'message',
+            'A driver is already assigned to this order.'
+        );
+
+    $this->assertDatabaseHas('orders', [
+        'id' => $order->id,
+        'driver_id' => $firstDriverProfile->id,
+    ]);
+}
+
 public function test_non_admin_cannot_assign_driver(): void
 {
     $manager = User::factory()->create([
@@ -1859,6 +2138,66 @@ public function test_assigning_driver_does_not_change_order_status(): void
         'driver_id' => $driverProfile->id,
         'status' => 'ready_for_pickup',
     ]);
+}
+
+
+public function test_orders_are_paginated(): void
+{
+    $customer = User::factory()->create([
+        'role' => 'customer',
+    ]);
+
+    $manager = User::factory()->create([
+        'role' => 'restaurant_manager',
+    ]);
+
+    $restaurant = Restaurant::factory()->create([
+        'manager_id' => $manager->id,
+    ]);
+
+    for ($i = 0; $i < 16; $i++) {
+        $this->createOrder(
+            $customer,
+            $restaurant
+        );
+    }
+
+    Sanctum::actingAs($customer);
+
+    $response = $this->getJson('/api/v1/orders');
+
+    $response
+        ->assertOk()
+        ->assertJsonStructure([
+            'data',
+            'links',
+            'meta',
+        ]);
+
+    $this->assertCount(
+        15,
+        $response->json('data')
+    );
+
+    $this->assertSame(
+        16,
+        $response->json('meta.total')
+    );
+
+    $this->assertSame(
+        15,
+        $response->json('meta.per_page')
+    );
+
+    $this->assertSame(
+        1,
+        $response->json('meta.current_page')
+    );
+
+    $this->assertSame(
+        2,
+        $response->json('meta.last_page')
+    );
 }
 
     private function createOrder(

@@ -33,10 +33,11 @@ class DeliveryDistanceService
             . $deliveryLongitude . ','
             . $deliveryLatitude;
 
-        $response = Http::timeout(10)
-            ->get($url, [
-                'overview' => 'false',
-            ]);
+        $response = Http::timeout(
+    (int) config('delivery.routing.timeout_seconds', 5)
+)->get($url, [
+    'overview' => 'false',
+]);
 
         if (! $response->successful()) {
             throw new Exception(
