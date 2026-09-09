@@ -12,12 +12,16 @@ class Order extends Model
     protected $fillable = [
         'delivery_address',
         'phone',
+        'delivery_latitude',
+        'delivery_longitude',
     ];
 
     protected $casts = [
         'subtotal' => 'decimal:2',
         'delivery_fee' => 'decimal:2',
         'total_amount' => 'decimal:2',
+        'delivery_latitude' => 'decimal:7',
+        'delivery_longitude' => 'decimal:7',
         'assigned_at' => 'datetime',
         'delivered_at' => 'datetime',
     ];

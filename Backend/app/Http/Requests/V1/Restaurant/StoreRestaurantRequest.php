@@ -12,7 +12,7 @@ class StoreRestaurantRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        return $this->user()?->role === 'restaurant_manager';
     }
 
     /**
@@ -26,6 +26,17 @@ class StoreRestaurantRequest extends FormRequest
     'name' => ['required', 'string', 'max:255'],
     'description' => ['nullable', 'string', 'max:2000'],
     'address' => ['required', 'string', 'max:500'],
+    'latitude' => [
+    'nullable',
+    'numeric',
+    'between:-90,90',
+],
+
+'longitude' => [
+    'nullable',
+    'numeric',
+    'between:-180,180',
+],
     'phone' => [
         'required',
         'string',

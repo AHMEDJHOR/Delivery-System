@@ -17,6 +17,8 @@ class RestaurantTest extends TestCase
             'name',
             'description',
             'address',
+            'latitude',
+            'longitude',
             'phone',
             'logo',
         ], $model->getFillable());

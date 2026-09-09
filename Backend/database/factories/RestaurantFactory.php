@@ -25,6 +25,8 @@ class RestaurantFactory extends Factory
             'name' => fake()->company(),
             'description' => fake()->sentence(),
             'address' => fake()->address(),
+            'latitude' => fake()->latitude(8, 14),
+            'longitude' => fake()->longitude(38, 42),
             'phone' => fake()->unique()->numerify('09########'),
             'logo' => null,
             'approval_status' => 'pending',

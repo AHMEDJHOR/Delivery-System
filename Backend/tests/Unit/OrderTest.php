@@ -15,6 +15,8 @@ class OrderTest extends TestCase
         $this->assertEquals([
             'delivery_address',
             'phone',
+            'delivery_latitude',
+            'delivery_longitude',
         ], (new Order())->getFillable());
     }
 

@@ -162,6 +162,8 @@ Stores restaurants and grocery stores registered on the platform. Each restauran
 | `address`         | TEXT            | NOT NULL                     | Restaurant address.                     |
 | `phone`           | VARCHAR(20)     | NOT NULL                     | Restaurant contact number.              |
 | `logo`            | VARCHAR(255)    | NULL                         | Restaurant logo path.                   |
+| `latitude` | DECIMAL(10,7) | NULL | Geographic latitude of the restaurant, used for delivery-distance calculation. |
+| `longitude` | DECIMAL(10,7) | NULL | Geographic longitude of the restaurant, used for delivery-distance calculation. |
 | `approval_status` | ENUM            | NOT NULL, DEFAULT `pending`  | `pending`, `approved`, or `rejected`.   |
 | `status`          | ENUM            | NOT NULL, DEFAULT `inactive` | `active`, `inactive`, or `suspended`.   |
 | `created_at`      | TIMESTAMP       | Auto Generated               | Record creation timestamp.              |
@@ -294,8 +296,11 @@ Stores customer orders from placement through delivery. Each order is associated
 | `driver_id`        | BIGINT UNSIGNED | NULL, FK → `driver_profiles.id` | Driver assigned to deliver the order.                                                              |
 | `subtotal`         | DECIMAL(10,2)   | NOT NULL                        | Cost of ordered items before delivery fee.                                                         |
 | `delivery_fee`     | DECIMAL(10,2)   | NOT NULL, DEFAULT 0.00          | Delivery charge.                                                                                   |
-| `total_amount`     | DECIMAL(10,2)   | NOT NULL                        | Final order amount.                                                                                |
+| `delivery_status` | ENUM | NOT NULL, DEFAULT `pending` | Status of delivery-fee calculation: `pending`, `calculated`, or `failed`. |
+| `total_amount` | DECIMAL(10,2) | NOT NULL | Order total. Initially equals the subtotal while delivery-fee calculation is pending, then is updated after the delivery fee is calculated. |
 | `delivery_address` | TEXT            | NOT NULL                        | Customer's delivery address.                                                                       |
+| `delivery_latitude` | DECIMAL(10,7) | NULL | Geographic latitude of the customer's delivery location. |
+| `delivery_longitude` | DECIMAL(10,7) | NULL | Geographic longitude of the customer's delivery location. |
 | `phone`            | VARCHAR(20)     | NOT NULL                        | Contact phone used for the order.                                                                  |
 | `status`           | ENUM            | NOT NULL, DEFAULT `pending`     | `pending`, `preparing`, `ready_for_pickup`, `in_transit`, `delivered`, `cancelled`, or `rejected`. |
 | `assigned_at`      | TIMESTAMP       | NULL                            | Time when a driver was assigned.                                                                   |
@@ -318,6 +323,32 @@ Stores customer orders from placement through delivery. Each order is associated
 - One Driver Profile can be assigned to many orders.
 - One Order contains many order items.
 - One Order can have zero or one payment.
+
+### Delivery Distance and Fee Calculation
+
+The backend calculates the delivery fee using the restaurant's coordinates and the customer's delivery coordinates.
+
+Delivery-fee calculation is performed asynchronously after the order is created. The order is initially created with:
+
+- `delivery_status`: `pending`
+- `delivery_fee`: `0.00`
+- `total_amount`: equal to the order subtotal
+
+A queued `CalculateDeliveryFee` job then calculates the road distance through the routing service and updates the order.
+
+Current pricing configuration:
+
+- Service fee: `20.00` ETB
+- Distance rate: `20.00` ETB per kilometer
+- Maximum delivery fee: `1020.00` ETB
+- Routing service: OSRM
+- Routing request timeout: `5` seconds
+
+The delivery fee is calculated as:
+
+```text
+delivery_fee = service_fee + (distance_km × distance_rate_per_km)
+```
 
 ---
 

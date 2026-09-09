@@ -14,6 +14,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $name
  * @property string|null $description
  * @property string $address
+ * @property float|null $latitude
+ * @property float|null $longitude
  * @property string $phone
  * @property string|null $logo
  * @property string $approval_status
@@ -30,9 +32,16 @@ class Restaurant extends Model
         'name',
         'description',
         'address',
+        'latitude',
+        'longitude',
         'phone',
         'logo',
     ];
+
+       protected $casts = [
+    'latitude' => 'decimal:7',
+    'longitude' => 'decimal:7',
+];
 
     /**
      * @return BelongsTo<User, $this>

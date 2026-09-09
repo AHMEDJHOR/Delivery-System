@@ -10,6 +10,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property-read string $name
  * @property-read string|null $description
  * @property-read string $address
+ * @property-read string|null $latitude
+ * @property-read string|null $longitude
  * @property-read string $phone
  * @property-read string|null $logo
  * @property-read string $approval_status
@@ -31,6 +33,8 @@ class RestaurantResource extends JsonResource
         'name' => $this->name,
         'description' => $this->description,
         'address' => $this->address,
+        'latitude' => $this->latitude,
+        'longitude' => $this->longitude,
         'phone' => $this->phone,
         'logo' => $this->logo
             ? asset('storage/' . $this->logo)

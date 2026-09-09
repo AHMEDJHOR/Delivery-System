@@ -98,59 +98,81 @@ class MenuItemController extends Controller
         }
     }
 
-    /**
-     * Update a menu item.
-     *
-     * Restaurant Manager who owns the menu item's restaurant only.
-     */
-    public function update(
-        UpdateMenuItemRequest $request,
-        MenuItem $menuItem
-    ): MenuItemResource|JsonResponse {
-        $this->authorize('update', $menuItem);
+/**
+ * Update a menu item.
+ *
+ * Restaurant Manager who owns the menu item's restaurant only.
+ */
+public function update(
+    UpdateMenuItemRequest $request,
+    MenuItem $menuItem
+): MenuItemResource|JsonResponse {
+    $this->authorize('update', $menuItem);
 
-        try {
-            $data = $request->validated();
+    $newImage = null;
+    $oldImage = $menuItem->image;
 
-            if ($request->hasFile('image')) {
-                if ($menuItem->image) {
-                    Storage::disk('public')->delete($menuItem->image);
-                }
+    try {
+        $data = $request->validated();
 
-                $data['image'] = $request->file('image')->store(
-                    'menu-items',
-                    'public'
-                );
-            } elseif (
-                $request->has('image') &&
-                $request->input('image') === null
-            ) {
-                if ($menuItem->image) {
-                    Storage::disk('public')->delete($menuItem->image);
-                }
+        if ($request->hasFile('image')) {
+            // Store the new image first.
+            $newImage = $request->file('image')->store(
+                'menu-items',
+                'public'
+            );
 
-                $data['image'] = null;
-            }
+            $data['image'] = $newImage;
 
+            // Update the database before removing the old image.
             $menuItem->update($data);
 
-            ActivityLogger::menuItemUpdated($request);
+            // Remove the old image only after the new image is stored
+            // and the database update succeeds.
+            if ($oldImage) {
+                Storage::disk('public')->delete($oldImage);
+            }
+        } elseif (
+            $request->has('image') &&
+            $request->input('image') === null
+        ) {
+            // Remove the image from the database first.
+            $menuItem->update([
+                ...$data,
+                'image' => null,
+            ]);
 
-            $menuItem->refresh();
-            $menuItem->load('restaurant', 'category');
-
-            return MenuItemResource::make($menuItem)
-                ->additional([
-                    'message' => 'Menu item updated successfully.',
-                ]);
-        } catch (Exception $e) {
-            return $this->error(
-                'Unable to update menu item.',
-                500,
-                config('app.debug') ? $e->getMessage() : null
-            );
+            // Delete the old file only after the database update succeeds.
+            if ($oldImage) {
+                Storage::disk('public')->delete($oldImage);
+            }
+        } else {
+            $menuItem->update($data);
         }
+
+        ActivityLogger::menuItemUpdated($request);
+
+        $menuItem->refresh();
+        $menuItem->load('restaurant', 'category');
+
+        return MenuItemResource::make($menuItem)
+            ->additional([
+                'message' => 'Menu item updated successfully.',
+            ]);
+    } catch (Exception $e) {
+        // If the new file was successfully stored but the database update
+        // failed, remove the new file so it does not become an orphan.
+        if ($newImage) {
+            Storage::disk('public')->delete($newImage);
+        }
+
+        return $this->error(
+            'Unable to update menu item.',
+            500,
+            config('app.debug') ? $e->getMessage() : null
+        );
     }
+}
 
     /**
      * Delete a menu item.

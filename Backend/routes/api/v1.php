@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\MenuItemController;
+use App\Http\Controllers\Api\V1\CartController;
 use App\Http\Controllers\Api\V1\OrderController;
 use App\Http\Controllers\Api\V1\RestaurantController;
 use Illuminate\Support\Facades\Route;
@@ -55,15 +56,53 @@ Route::get('menu-items/{menuItem}', [MenuItemController::class, 'show'])
 Route::middleware(['auth:sanctum', 'throttle:authenticated'])->group(function (): void {
     Route::post('logout', [AuthController::class, 'logout'])->name('api.v1.logout');
     Route::get('profile', [AuthController::class, 'profile'])->name('api.v1.profile');
-
     // Change password
     Route::put('change-password', [AuthController::class, 'changePassword'])->name('api.v1.change-password');
 
     Route::post('email/resend', [AuthController::class, 'resendVerificationEmail'])
         ->middleware('throttle:6,1')
         ->name('verification.send');
+        // Customer Cart routes
+    Route::middleware('role:customer')->group(function (): void {
+        Route::get('cart', [CartController::class, 'index'])
+            ->name('api.v1.cart.index');
 
-    Route::get('orders', [OrderController::class, 'index'])->name('api.v1.orders.index');
+        Route::post('cart', [CartController::class, 'store'])
+            ->name('api.v1.cart.store');
+
+        Route::put('cart/{cartItem}', [CartController::class, 'update'])
+            ->name('api.v1.cart.update');
+
+        Route::delete('cart', [CartController::class, 'clear'])
+            ->name('api.v1.cart.clear');
+
+        Route::delete('cart/{cartItem}', [CartController::class, 'destroy'])
+            ->name('api.v1.cart.destroy');
+    });
+
+    // Order routes
+Route::middleware('role:customer,restaurant_manager,driver,admin')->group(function (): void {
+    Route::get('orders', [OrderController::class, 'index'])
+        ->name('api.v1.orders.index');
+
+    Route::get('orders/{order}', [OrderController::class, 'show'])
+        ->name('api.v1.orders.show');
+});
+
+Route::middleware('role:customer')->group(function (): void {
+    Route::post('orders', [OrderController::class, 'store'])
+        ->name('api.v1.orders.store');
+});
+
+Route::middleware('role:restaurant_manager,driver,admin')->group(function (): void {
+    Route::put('orders/{order}/status', [OrderController::class, 'updateStatus'])
+        ->name('api.v1.orders.update-status');
+});
+
+Route::middleware('role:admin')->group(function (): void {
+    Route::put('orders/{order}/assign-driver', [OrderController::class, 'assignDriver'])
+        ->name('api.v1.orders.assign-driver');
+});
 
         // Restaurant Manager routes
     Route::middleware('role:restaurant_manager')->group(function (): void {

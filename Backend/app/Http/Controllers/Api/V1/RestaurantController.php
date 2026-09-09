@@ -111,45 +111,71 @@ class RestaurantController extends Controller
         );
     }
 }
-    /**
+
+/**
  * Update restaurant information.
  *
  * Restaurant Manager who owns the restaurant only.
  */
-    public function update(
+public function update(
     UpdateRestaurantRequest $request,
     Restaurant $restaurant
 ): RestaurantResource|JsonResponse {
     $this->authorize('update', $restaurant);
 
+    $newLogo = null;
+    $oldLogo = $restaurant->logo;
+
     try {
         $data = $request->validated();
 
         if ($request->hasFile('logo')) {
-            // Replace existing logo
-            if ($restaurant->logo) {
-                Storage::disk('public')->delete($restaurant->logo);
-            }
-
-            $data['logo'] = $request->file('logo')->store(
+            // Store the new logo first.
+            $newLogo = $request->file('logo')->store(
                 'restaurants',
                 'public'
             );
-        } elseif ($request->has('logo') && $request->input('logo') === null) {
-            // Remove existing logo
-            if ($restaurant->logo) {
-                Storage::disk('public')->delete($restaurant->logo);
+
+            $data['logo'] = $newLogo;
+
+            // Update the database before removing the old logo.
+            $restaurant->update($data);
+
+            // Remove the old logo only after the new logo is stored
+            // and the database update succeeds.
+            if ($oldLogo) {
+                Storage::disk('public')->delete($oldLogo);
             }
+        } elseif (
+            $request->has('logo') &&
+            $request->input('logo') === null
+        ) {
+            // Remove the logo from the database first.
+            $restaurant->update([
+                ...$data,
+                'logo' => null,
+            ]);
 
-            $data['logo'] = null;
+            // Delete the old file only after the database update succeeds.
+            if ($oldLogo) {
+                Storage::disk('public')->delete($oldLogo);
+            }
+        } else {
+            $restaurant->update($data);
         }
-
-        $restaurant->update($data);
 
         ActivityLogger::restaurantUpdated($request);
 
-        return RestaurantResource::make($restaurant->fresh());
+        return RestaurantResource::make(
+            $restaurant->fresh()
+        );
     } catch (\Exception $e) {
+        // If the new file was successfully stored but the database update
+        // failed, remove the new file so it does not become an orphan.
+        if ($newLogo) {
+            Storage::disk('public')->delete($newLogo);
+        }
+
         return $this->error(
             'Unable to update restaurant.',
             500,

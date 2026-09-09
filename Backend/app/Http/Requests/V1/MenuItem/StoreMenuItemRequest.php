@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\V1\MenuItem;
 
+use App\Models\Restaurant;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -12,7 +13,12 @@ class StoreMenuItemRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return true;
+        $user = $this->user();
+        $restaurant = $this->route('restaurant');
+
+        return $user?->role === 'restaurant_manager'
+        && $restaurant instanceof Restaurant
+        && $restaurant->manager_id === $user->id;
     }
 
     /**
